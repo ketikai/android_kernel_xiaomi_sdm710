@@ -2,19 +2,23 @@
 
 > '''
 >
-> #### The official KSU has not supported `non-gki` devices for a long time.
+> * #### The official KSU has not supported `non-gki` devices for a long time.
 >
-> #### So we chose the more reliable KSU fork.
+> * #### So we chose the more reliable KSU fork.
 >
 > '''
 
-### backslashxx's KernelSU
+### Backslashxx's KernelSU
 ---------------------------------
 
-* [Repository](https://github.com/backslashxx/KernelSU)
-* [Releases](https://github.com/backslashxx/KernelSU/releases)
+> '''
+> 
+> * [Repository](https://github.com/backslashxx/KernelSU)
+> * [Releases](https://github.com/backslashxx/KernelSU/releases)
+> 
+> '''
 
-### how to setup
+### How To Setup
 ---------------------------------
 
 ```shell
@@ -23,11 +27,39 @@ cd android_kernel_xiaomi_sdm710
 
 # 2. setup with backslashxx's KernelSU
 curl -LSs https://raw.githubusercontent.com/backslashxx/KernelSU/master/kernel/setup.sh  | bash -s master
-
-# 3. enable 'CONFIG_KSU'
-sed -i 's/CONFIG_KSU=n/CONFIG_KSU=y/g' ./arch/arm64/configs/grus_defconfig
 ```
 
-### help
+### Quick Build (Github Actions)
 ---------------------------------
-* [scope-minimized manual hooks](https://github.com/backslashxx/KernelSU/issues/5)
+
+> '''
+> 
+> 1. fork this repository
+> 
+> 2. enable github actions
+>
+> 3. create a repository's secret of actions (optional)
+>
+>    name: `SIGNING_KEY`
+>
+>    content: like `certs/signing_key.pem`
+>
+>             -----BEGIN PRIVATE KEY-----
+>             MIIJQw...more content...0zxuI=
+>             -----END PRIVATE KEY-----
+>             -----BEGIN CERTIFICATE-----
+>             MIIFKD...more content...R8gw==
+>             -----END CERTIFICATE-----
+> 
+> 4. manual run workflow (build kernel)
+>
+> '''
+
+### Related
+---------------------------------
+
+> '''
+>
+> * [scope-minimized manual hooks](https://github.com/backslashxx/KernelSU/issues/5)
+> 
+> '''
