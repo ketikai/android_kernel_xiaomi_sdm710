@@ -124,3 +124,6 @@ kernel/configs/android-*.cfg
 #
 Android.bp
 out
+
+# Includ '.github'
+!.github
