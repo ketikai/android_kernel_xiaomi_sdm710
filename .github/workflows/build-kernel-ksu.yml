@@ -1,0 +1,42 @@
+name: Build Kernel With KernelSU
+
+on:
+  push: &on_push
+    branches:
+    - master
+  pull_request: *on_push
+
+env:
+  CHECK_FLAG: feat(ksu)
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    if: toJson(github.event.commits) != '[]'
+    outputs:
+      check_flag: ${{ env.CHECK_FLAG }}
+      need_build: ${{ steps.check.outputs.result }} 
+    steps:
+    - name: test
+      id: check
+      uses: actions/github-script@v9
+      with:
+        script: |
+          let commits = ${{ toJson(github.event.commits) }}
+          console.log('commits: ' + commits.length)
+          for (let i = 0; i < commits.length; i++) {
+            let message = commits[i].message
+            console.log(message + '\n---')
+            if (message.startsWith('${{ env.CHECK_FLAG }}')) {
+              return true
+            }
+          }
+          return false
+  build:
+    name: when ${{ needs.check.outputs.check_flag }}
+    uses: ./.github/workflows/build-kernel.yml
+    needs: 
+    - check
+    if: needs.check.outputs.need_build == true
+    with:
+      ksu: true
