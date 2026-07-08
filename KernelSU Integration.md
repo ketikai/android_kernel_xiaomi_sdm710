@@ -53,6 +53,8 @@ curl -LSs https://raw.githubusercontent.com/backslashxx/KernelSU/master/kernel/s
 > 
 > 4. manual run workflow (build kernel)
 >
+>    check `With KernelSU`
+>
 > '''
 
 ### Related
