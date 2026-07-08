@@ -1,44 +1,50 @@
 name: Build Kernel
 
 on:
-  workflow_dispatch:
-    inputs:
+  workflow_call:
+    inputs: &workflow_inputs
       kernel_defconfig:
         description: Kernel - Defconfig
-        required: true
+        type: string
+        required: false
         default: grus
-        type: choice
-        options:
-        - grus
       ksu:
         description: With KernelSU
-        required: false
         type: boolean
+        required: false
         default: true
       kernel_localversion:
         description: Kernel - Local Version
+        type: string
         required: false
         default: wabby-wabbo
       ksu_setup_script:
         description: KernelSU - Setup Script
+        type: string
         required: false
         default: https://raw.githubusercontent.com/backslashxx/KernelSU/master/kernel/setup.sh
       ksu_setup_branch:
         description: KernelSU - Setup Branch
+        type: string
         required: false
         default: master
       prebuilt_gcc_toolchain:
         description: Prebuilt - GCC Toolchain
+        type: string
         required: false
         default: https://github.com/ketikai/android_kernel_xiaomi_sdm710/releases/download/prebuilt/linaro-gcc.tar.xz
       prebuilt_clang_toolchain:
         description: Prebuilt - Clang Toolchain
+        type: string
         required: false
         default: https://github.com/ketikai/android_kernel_xiaomi_sdm710/releases/download/prebuilt/proton-clang.tar.xz
       prebuilt_anykernel:
         description: Prebuilt - AnyKernel
+        type: string
         required: false
         default: https://github.com/ketikai/android_kernel_xiaomi_sdm710/releases/download/prebuilt/anykernel.tar.xz
+  workflow_dispatch:
+    inputs: *workflow_inputs
     
 env:
   TOOLCHAIN_DIR: 'toolchain'
@@ -62,10 +68,10 @@ jobs:
 
     - name: Export Environment Variables
       env:
-        KERNEL_DEFCONFIG: ${{ github.event.inputs.kernel_defconfig }}
-        KERNEL_LOCALVERSION: ${{ github.event.inputs.kernel_localversion }}
-        PREBUILT_GCC_TOOLCHAIN: ${{ github.event.inputs.prebuilt_gcc_toolchain }}
-        PREBUILT_CLANG_TOOLCHAIN: ${{ github.event.inputs.prebuilt_clang_toolchain }}
+        KERNEL_DEFCONFIG: ${{ inputs.kernel_defconfig }}
+        KERNEL_LOCALVERSION: ${{ inputs.kernel_localversion }}
+        PREBUILT_GCC_TOOLCHAIN: ${{ inputs.prebuilt_gcc_toolchain }}
+        PREBUILT_CLANG_TOOLCHAIN: ${{ inputs.prebuilt_clang_toolchain }}
       run: |
         echo "DEFCONFIG=${KERNEL_DEFCONFIG}_defconfig" >> ${GITHUB_ENV}
         if [[ -n "${KERNEL_LOCALVERSION}" ]]; then
@@ -121,9 +127,9 @@ jobs:
 
     - name: KernelSU Integration
       env:
-        KSU: ${{ github.event.inputs.ksu }}
-        KSU_SETUP_SCRIPT: ${{ github.event.inputs.ksu_setup_script }}
-        KSU_SETUP_BRANCH: ${{ github.event.inputs.ksu_setup_branch }}
+        KSU: ${{ inputs.ksu }}
+        KSU_SETUP_SCRIPT: ${{ inputs.ksu_setup_script }}
+        KSU_SETUP_BRANCH: ${{ inputs.ksu_setup_branch }}
       run: |
         if ${KSU}; then
           curl -LSs ${KSU_SETUP_SCRIPT} | bash -s ${KSU_SETUP_BRANCH}
@@ -161,7 +167,7 @@ jobs:
     steps:
     - name: Download Prebuilt AnyKernel
       env:
-        PREBUILT_ANYKERNEL: ${{ github.event.inputs.prebuilt_anykernel }}
+        PREBUILT_ANYKERNEL: ${{ inputs.prebuilt_anykernel }}
       run: |
         mkdir -p ${OUTPUT_DIR}
         wget -O - ${PREBUILT_ANYKERNEL} | tar -xJvf - -C ${OUTPUT_DIR}
