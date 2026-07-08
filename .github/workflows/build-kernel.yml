@@ -12,7 +12,7 @@ on:
         description: With KernelSU
         type: boolean
         required: false
-        default: true
+        default: false
       kernel_localversion:
         description: Kernel - Local Version
         type: string
