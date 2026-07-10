@@ -137,6 +137,8 @@ jobs:
         path: |
           ${{ env.DESTINATION_DIR }}/*
         if-no-files-found: error
+        overwrite: true
+        include-hidden-files: true
   
   assamble:
     runs-on: ubuntu-22.04
@@ -165,3 +167,5 @@ jobs:
         path: |
           ${{ env.DESTINATION_DIR }}/*
         if-no-files-found: error
+        overwrite: true
+        include-hidden-files: true
