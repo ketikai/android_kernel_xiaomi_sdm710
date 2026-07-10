@@ -3,11 +3,26 @@ name: Build Kernel
 on:
   workflow_call:
     inputs: &workflow_inputs
-      kernel_defconfig:
-        description: Kernel - Defconfig
+      kernel_arch:
+        description: Kernel - Arch
+        type: string
+        required: false
+        default: arm64
+      kernel_device:
+        description: Kernel - Device
         type: string
         required: false
         default: grus
+      llvm:
+        description: Use LLVM/Clang
+        type: boolean
+        required: false
+        default: true
+      verbose:
+        description: Enable more detailed logs
+        type: boolean
+        required: false
+        default: false
       ksu:
         description: With KernelSU
         type: boolean
@@ -38,8 +53,8 @@ on:
         type: string
         required: false
         default: https://github.com/ketikai/android_kernel_xiaomi_sdm710/releases/download/prebuilt/proton-clang.tar.xz
-      prebuilt_anykernel:
-        description: Prebuilt - AnyKernel
+      prebuilt_anykernel_package:
+        description: Prebuilt - AnyKernel Package
         type: string
         required: false
         default: https://github.com/ketikai/android_kernel_xiaomi_sdm710/releases/download/prebuilt/anykernel.tar.xz
@@ -47,117 +62,80 @@ on:
     inputs: *workflow_inputs
     
 env:
-  TOOLCHAIN_DIR: 'toolchain'
-  OUTPUT_DIR: 'build'
+  DESTINATION_DIR: .target
   BUILD_ARTIFACT: kernel
   ASSAMBLE_ARTIFACT: anykernel
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-    env:
-      CC: clang
-      CROSS_COMPILE: aarch64-linux-gnu-
-      CROSS_COMPILE_ARM32: arm-linux-gnueabi-
-      CROSS_TRIPLE: aarch64-linux-gnu-
-      ARCH: arm64
-      SUBARCH: arm64
     steps:
     - name: Checkout
       uses: actions/checkout@v7
 
-    - name: Export Environment Variables
+    - name: Prepare Prebuilt 
+      id: prepare_prebuilt
       env:
-        KERNEL_DEFCONFIG: ${{ inputs.kernel_defconfig }}
-        KERNEL_LOCALVERSION: ${{ inputs.kernel_localversion }}
-        PREBUILT_GCC_TOOLCHAIN: ${{ inputs.prebuilt_gcc_toolchain }}
-        PREBUILT_CLANG_TOOLCHAIN: ${{ inputs.prebuilt_clang_toolchain }}
+        TOOLCHAIN_DIR: .prebuilt/toolchain
       run: |
-        echo "DEFCONFIG=${KERNEL_DEFCONFIG}_defconfig" >> ${GITHUB_ENV}
-        if [[ -n "${KERNEL_LOCALVERSION}" ]]; then
-          echo "LOCALVERSION=-${KERNEL_LOCALVERSION}" >> ${GITHUB_ENV}
-        fi
-        echo "WORKER_SIZE=$(( $(nproc) * 2 - 1 ))" >> ${GITHUB_ENV}
-        echo "PREBUILT_GCC_TOOLCHAIN=${PREBUILT_GCC_TOOLCHAIN}" >> ${GITHUB_ENV}
-        echo "PREBUILT_CLANG_TOOLCHAIN=${PREBUILT_CLANG_TOOLCHAIN}" >> ${GITHUB_ENV}
+        DIR="${{ env.TOOLCHAIN_DIR }}/gcc"
+        mkdir -p $DIR
+        echo "GCC_TOOLCHAIN_DIR=$DIR" >> $GITHUB_OUTPUT
+        CACHE_KEY="${{ env.TOOLCHAIN_DIR }}/.GCC_TOOLCHAIN_CACHE_KEY"
+        echo "${{ inputs.prebuilt_gcc_toolchain }}" > $CACHE_KEY
+        echo "GCC_TOOLCHAIN_CACHE_KEY=$CACHE_KEY" >> $GITHUB_OUTPUT
 
-        mkdir -p ${TOOLCHAIN_DIR}
-        echo "${PREBUILT_GCC_TOOLCHAIN}" > ${TOOLCHAIN_DIR}/.PREBUILT_GCC_TOOLCHAIN
-        echo "${PREBUILT_CLANG_TOOLCHAIN}" > ${TOOLCHAIN_DIR}/.PREBUILT_CLANG_TOOLCHAIN
+        DIR="${{ env.TOOLCHAIN_DIR }}/clang"
+        mkdir -p $DIR
+        echo "CLANG_TOOLCHAIN_DIR=$DIR" >> $GITHUB_OUTPUT
+        CACHE_KEY="${{ env.TOOLCHAIN_DIR }}/.CLANG_TOOLCHAIN_CACHE_KEY"
+        echo "${{ inputs.prebuilt_clang_toolchain }}" > $CACHE_KEY
+        echo "CLANG_TOOLCHAIN_CACHE_KEY=$CACHE_KEY" >> $GITHUB_OUTPUT
 
     - name: Download Prebuilt GCC Toolchain From Cache
       uses: actions/cache@v6
-      id: cache_prebuilt_gcc_toolchain
+      id: prebuilt_gcc_toolchain_cache
       with:
-        path: ${{ env.TOOLCHAIN_DIR }}/gcc
-        key: ${{ runner.os }}-${{ runner.arch }}-prebuilt-gcc-toolchain-${{ hashFiles(format('{0}/.PREBUILT_GCC_TOOLCHAIN', env.TOOLCHAIN_DIR)) }}
+        path: ${{ steps.prepare_prebuilt.outputs.GCC_TOOLCHAIN_DIR }}
+        key: ${{ runner.os }}-${{ runner.arch }}-prebuilt-gcc-toolchain-${{ hashFiles(steps.prepare_prebuilt.outputs.GCC_TOOLCHAIN_CACHE_KEY) }}
 
     - name: Download Prebuilt GCC Toolchain
-      if: steps.cache_prebuilt_gcc_toolchain.outputs.cache-hit != 'true'
+      if: steps.prebuilt_gcc_toolchain_cache.outputs.cache-hit != true
       run: |
-        mkdir -p ${TOOLCHAIN_DIR}/gcc/
-        pushd ${TOOLCHAIN_DIR}
-        wget -O - ${PREBUILT_GCC_TOOLCHAIN} | tar -xJvf - -C gcc
-        popd
+        wget -O - ${{ inputs.prebuilt_gcc_toolchain }} | tar -xJvf - -C ${{ steps.prepare_prebuilt.outputs.GCC_TOOLCHAIN_DIR }}
 
     - name: Download Prebuilt Clang Toolchain From Cache
       uses: actions/cache@v6
-      id: cache_prebuilt_clang_toolchain
+      id: prebuilt_clang_toolchain_cache
       with:
-        path: ${{ env.TOOLCHAIN_DIR }}/clang/
-        key: ${{ runner.os }}-${{ runner.arch }}-prebuilt-clang-toolchain-${{ hashFiles(format('{0}/.PREBUILT_CLANG_TOOLCHAIN', env.TOOLCHAIN_DIR)) }}
+        path: ${{ steps.prepare_prebuilt.outputs.CLANG_TOOLCHAIN_DIR }}
+        key: ${{ runner.os }}-${{ runner.arch }}-prebuilt-clang-toolchain-${{ hashFiles(steps.prepare_prebuilt.outputs.CLANG_TOOLCHAIN_CACHE_KEY) }}
 
     - name: Download Prebuilt Clang Toolchain
-      if: steps.cache_prebuilt_clang_toolchain.outputs.cache-hit != 'true'
+      if: steps.prebuilt_clang_toolchain_cache.outputs.cache-hit != true
       run: |
-        mkdir -p ${TOOLCHAIN_DIR}/clang
-        pushd ${TOOLCHAIN_DIR}
-        wget -O - ${PREBUILT_CLANG_TOOLCHAIN} | tar -xJvf - -C clang
-        popd
-
-    - name: Setup Prebuilt Toolchain
-      run: |
-        CLANG_TOOLCHAIN="$PWD/${TOOLCHAIN_DIR}/clang/bin"
-        GCC_ARM64_TOOLCHAIN="$PWD/${TOOLCHAIN_DIR}/gcc/aarch64-linux-gnu/bin"
-        GCC_ARM_TOOLCHAIN="$PWD/${TOOLCHAIN_DIR}/gcc/arm-linux-gnueabi/bin"
-        ls -ahl $CLANG_TOOLCHAIN
-        ls -ahl $GCC_ARM64_TOOLCHAIN
-        ls -ahl $GCC_ARM_TOOLCHAIN
-        echo "PATH=\"${CLANG_TOOLCHAIN}:${GCC_ARM64_TOOLCHAIN}:${GCC_ARM_TOOLCHAIN}:$PATH\"" >> ${GITHUB_ENV}
+        wget -O - ${{ inputs.prebuilt_clang_toolchain }} | tar -xJvf - -C ${{ steps.prepare_prebuilt.outputs.CLANG_TOOLCHAIN_DIR }}
 
     - name: KernelSU Integration
-      env:
-        KSU: ${{ inputs.ksu }}
-        KSU_SETUP_SCRIPT: ${{ inputs.ksu_setup_script }}
-        KSU_SETUP_BRANCH: ${{ inputs.ksu_setup_branch }}
       run: |
-        if ${KSU}; then
-          curl -LSs ${KSU_SETUP_SCRIPT} | bash -s ${KSU_SETUP_BRANCH}
+        if ${{ inputs.ksu }}; then
+          curl -LSs ${{ inputs.ksu_setup_script }} | bash -s ${{ inputs.ksu_setup_branch }}
         fi
 
-    - name: Make Config
+    - name: Execute assamble
       run: |
-        make O=${OUTPUT_DIR} ${DEFCONFIG}
+        LLVM=$(${{ inputs.llvm }} && echo "--llvm" || echo "")
+        VERSION=$([[ -n "${{ inputs.kernel_localversion }}" ]] && echo "--version ${{ inputs.kernel_localversion }}" || echo "")
+        SIGNING=$([[ -n "${{ secrets.SIGNING_KEY }}" ]] && echo "${{ secrets.SIGNING_KEY }}" > ".signing_key.pem"; echo "-s .signing_key.pem" || echo "")
+        VERBOSE=$(${{ inputs.verbose }} && echo "-v" || echo "")
+        ./assamble ${{ inputs.kernel_arch }} ${{ inputs.kernel_device }} $LLVM $VERSION $SIGNING $VERBOSE -d ${{ env.DESTINATION_DIR }}
 
-    - name: Detect External Signing Key
-      run: |
-        if [[ -n "${{ secrets.SIGNING_KEY }}" ]]; then
-          SIGNING_KEY_FILE=${PWD}/certs/external_signing_key.pem
-          echo "${{ secrets.SIGNING_KEY }}" > ${SIGNING_KEY_FILE}
-          scripts/config --file ${OUTPUT_DIR}/.config --set-str MODULE_SIG_KEY ${SIGNING_KEY_FILE}
-          make O=${OUTPUT_DIR} oldconfig
-        fi
-
-    - name: Make Image
-      run: |
-        make O=${OUTPUT_DIR} -j${WORKER_SIZE}
-
-    - name: Upload Kernel
+    - name: Upload Kernel And Modules
       uses: actions/upload-artifact@v7
       with:
         name: ${{ env.BUILD_ARTIFACT }}
         path: |
-          ${{ env.OUTPUT_DIR }}/arch/arm64/boot/Image
+          ${{ env.DESTINATION_DIR }}/*
         if-no-files-found: error
   
   assamble:
@@ -165,12 +143,10 @@ jobs:
     needs: 
     - build
     steps:
-    - name: Download Prebuilt AnyKernel
-      env:
-        PREBUILT_ANYKERNEL: ${{ inputs.prebuilt_anykernel }}
+    - name: Download Prebuilt AnyKernel Package
       run: |
-        mkdir -p ${OUTPUT_DIR}
-        wget -O - ${PREBUILT_ANYKERNEL} | tar -xJvf - -C ${OUTPUT_DIR}
+        mkdir -p ${{ env.DESTINATION_DIR }}
+        wget -O - ${{ inputs.prebuilt_anykernel_package }} | tar -xJvf - -C ${{ env.DESTINATION_DIR }}
 
     - name: Download Kernel
       uses: actions/download-artifact@v8
@@ -178,15 +154,14 @@ jobs:
         name: ${{ env.BUILD_ARTIFACT }}
         path: ${{ env.BUILD_ARTIFACT }}
 
-    - name: Setup Kernel
+    - name: Setup Kernel Image
       run: |
-        cp ${BUILD_ARTIFACT}/Image ${OUTPUT_DIR}/
+        cp "${{ env.BUILD_ARTIFACT }}/kernel/Image" "${{ env.DESTINATION_DIR }}"
 
-    - name: Upload AnyKernel
+    - name: Upload AnyKernel Package
       uses: actions/upload-artifact@v7
       with:
         name: ${{ env.ASSAMBLE_ARTIFACT }}
         path: |
-          ${{ env.OUTPUT_DIR }}/*
+          ${{ env.DESTINATION_DIR }}/*
         if-no-files-found: error
-        include-hidden-files: true
