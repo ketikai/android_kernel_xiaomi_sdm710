@@ -1,0 +1,262 @@
+#!/bin/bash
+
+# build-essential libssl-dev ccache
+
+set -e
+
+if (( $# < 2 )); then
+  echo "用法: $0 <arch> <device> [选项 [值]...]..."
+  echo "  可用选项:"
+  echo "    -p, --prebuilt <prebuilt_dir>"
+  echo "        指定预构建库/包目录，默认: '$PREBUILT_DIR'"
+  echo ""
+  echo "    -c, --cache <cache_dir>"
+  echo "        指定缓存的存放目录，默认: '$CACHE_DIR'"
+  echo ""
+  echo "    -w, --work <work_dir>"
+  echo "        指定工作目录，默认: '$WORK_DIR'"
+  echo ""
+  echo "    -j, --jobs <size>"
+  echo "        指定工作线程数量，默认: $JOBS"
+  echo ""
+  echo "        --clean"
+  echo "        在构建之前进行清理，默认: $((( $CLEAN != 0)) && echo '启用' || echo '禁用')"
+  echo ""
+  echo "        --llvm"
+  echo "        使用 Clang/Clang++ 作为主要编译器，默认: $((( $LLVM != 0)) && echo '启用' || echo '禁用')"
+  echo ""
+  echo "        --version <localversion>"
+  echo "        指定 LOCALVERSION 的值，默认: '$LOCALVERSION'"
+  echo ""
+  echo "        --build <build_dir>"
+  echo "        指定构建目录，默认: '$BUILD_DIR'"
+  echo ""
+  echo "    -v, --verbose"
+  echo "        使用构建参数 'V=1' 来启用更详细的日志，默认: $((( $VERBOSE != 0)) && echo '启用' || echo '禁用')"
+  echo ""
+  echo "        --logs <logs_dir>"
+  echo "        指定日志文件的存放目录，默认: '$LOGS_DIR'"
+  echo ""
+  echo "    -d, --destination <dest_dir>"
+  echo "        指定目标工件的存放目录，默认: '$DESTINATION_DIR'"
+  echo ""
+  echo "    -s, --signing <key_file>"
+  echo "        指定签名密钥文件，默认: '$SIGNING_KEY_FILE'"
+  echo ""
+  echo "示例: $0 arm64 grus --llvm --version wabby-wabbo -s .signing_key.pem"
+  exit 1
+fi
+
+if [[ ! -n "$1" || "$1" =~ ^- ]]; then
+  echo "无效参数: <arch> 的值不能为 '$1'" >&2
+  exit 1
+fi
+ARCH="$1"
+shift
+if [[ ! -n "$1" || "$1" =~ ^- ]]; then
+  echo "无效参数: <device> 的值不能为 '$1'" >&2
+  exit 1
+fi
+DEVICE="$1"
+shift
+
+PREBUILT_DIR=$(realpath -m ".prebuilt")
+CACHE_DIR=$(realpath -m ".cache")
+WORK_DIR=$(realpath -m ".")
+JOBS=$(($(nproc) * 2 - 1))
+CLEAN=0
+LLVM=0
+LOCALVERSION=""
+BUILD_DIR=$(realpath -m ".build")
+VERBOSE=0
+LOGS_DIR=$(realpath -m ".logs")
+DESTINATION_DIR=$(realpath -m ".target")
+SIGNING_KEY_FILE=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -p|--prebuilt)
+      if [ -n "$2" ]; then
+        PREBUILT_DIR=$(realpath -m "$2")
+        shift 2
+      else
+        echo "无效选项: $1: 必须提供一个有效的目录路径" >&2
+        exit 1
+      fi
+      ;;
+    -c|--cache)
+      if [ -n "$2" ]; then
+        CACHE_DIR=$(realpath -m "$2")
+        shift 2
+      else
+        echo "无效选项: $1: 必须提供一个有效的目录路径" >&2
+        exit 1
+      fi
+      ;;
+    -w|--work)
+      if [ -n "$2" ]; then
+        WORK_DIR=$(realpath -m "$2")
+        shift 2
+      else
+        echo "无效选项: $1: 必须提供一个有效的目录路径" >&2
+        exit 1
+      fi
+      ;;
+    -j|--jobs)
+      if [[ "$2" =~ ^[1-9][0-9]*$ ]]; then
+        JOBS=$2
+        shift 2
+      else
+        echo "无效选项: $1: 必须提供一个有效的正整数" >&2
+        exit 1
+      fi
+      ;;
+    --clean)
+      CLEAN=1
+      shift
+      ;;
+    --llvm)
+      LLVM=1
+      shift
+      ;;
+    --version)
+      if [ -n "$2" ]; then
+        LOCALVERSION="$2"
+        shift 2
+      else
+        echo "无效选项: $1: 必须提供一个有效的版本名称" >&2
+        exit 1
+      fi
+      ;;
+    --build)
+      if [ -n "$2" ]; then
+        BUILD_DIR=$(realpath -m "$2")
+        if [[ "$BUILD_DIR" == "$WORK_DIR" ]]; then
+          echo "无效选项: $1: 构建目录不能与工作目录相同" >&2
+          exit 1
+        fi
+        shift 2
+      else
+        echo "无效选项: $1: 必须提供一个有效的目录路径" >&2
+        exit 1
+      fi
+      ;;
+    -v|--verbose)
+      VERBOSE=1
+      shift
+      ;;
+    --logs)
+      if [ -n "$2" ]; then
+        LOGS_DIR=$(realpath -m "$2")
+        shift 2
+      else
+        echo "无效选项: $1: 必须提供一个有效的目录路径" >&2
+        exit 1
+      fi
+      ;;
+    -d|--destination)
+      if [ -n "$2" ]; then
+        DESTINATION_DIR=$(realpath -m "$2")
+        shift 2
+      else
+        echo "无效选项: $1: 必须提供一个有效的目录路径" >&2
+        exit 1
+      fi
+      ;;
+    -s|--signing)
+      if [ -n "$2" ]; then
+        SIGNING_KEY_FILE=$(realpath -m "$2")
+        shift 2
+      else
+        echo "无效选项: $1: 必须提供一个有效的文件路径" >&2
+        exit 1
+      fi
+      ;;
+    -*)
+      echo "无效选项: $1" >&2
+      exit 1
+      ;;
+    *)
+      echo "无效值: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+echo "工作线程: $JOBS"
+pushd $WORK_DIR
+
+TOOLCHAIN_DIR="$PREBUILT_DIR/toolchain"
+export PATH="$TOOLCHAIN_DIR/gcc/aarch64-linux-gnu/bin:$PATH"
+export PATH="$TOOLCHAIN_DIR/gcc/arm-linux-gnueabi/bin:$PATH"
+export PATH="$TOOLCHAIN_DIR/clang/bin:$PATH"
+
+echo "配置缓存..."
+export CCACHE="ccache"
+export CCACHE_DIR=$CACHE_DIR
+ccache --show-config
+if (( $CLEAN != 0 )); then
+  echo "清理缓存..."
+  ccache -zC
+fi
+
+V=$((( $VERBOSE != 0 )) && echo 'V=1' || echo 'V=s')
+O="O=$BUILD_DIR"
+
+if (( $LLVM != 0 )); then
+  export LLVM=1
+fi
+
+if [[ -n "$LOCALVERSION" ]]; then
+  export LOCALVERSION="-$LOCALVERSION"
+fi
+
+export CROSS_COMPILE="aarch64-linux-gnu-"
+export CROSS_COMPILE_ARM32="arm-linux-gnueabi-"
+export CROSS_TRIPLE="aarch64-linux-gnu-"
+export ARCH="$ARCH"
+
+echo "初始化构建..."
+rm -rf $LOGS_DIR
+mkdir -p $LOGS_DIR
+make $V $O mrproper 2> >(tee $LOGS_DIR/mrproper-error.log) 1> >(tee $LOGS_DIR/mrproper-info.log)
+make $V mrproper 2> >(tee $LOGS_DIR/mrproper-error.log) 1> >(tee $LOGS_DIR/mrproper-info.log)
+
+echo "生成配置..."
+DEFAULT_CONFIG="${DEVICE}_defconfig"
+make $V $O $DEFAULT_CONFIG 2> >(tee $LOGS_DIR/defconfig-error.log) 1> >(tee $LOGS_DIR/defconfig-info.log)
+
+if [[ -n "$SIGNING_KEY_FILE" ]]; then
+  echo "使用外部签名密钥..."
+  scripts/config --file ${BUILD_DIR}/.config --set-str MODULE_SIG_KEY $SIGNING_KEY_FILE
+  make $V $O oldconfig 2> >(tee $LOGS_DIR/oldconfig-error.log) 1> >(tee $LOGS_DIR/oldconfig-info.log)
+fi
+
+echo "构建内核..."
+make $V $O -j$JOBS 2> >(tee $LOGS_DIR/kernel-error.log) 1> >(tee $LOGS_DIR/kernel-info.log)
+
+echo "复制内核..."
+KERNEL_DESTINATION_DIR=$DESTINATION_DIR/kernel
+mkdir -p $KERNEL_DESTINATION_DIR
+cp $BUILD_DIR/vmlinux $KERNEL_DESTINATION_DIR
+pushd $BUILD_DIR/arch/$ARCH/boot
+
+find . -type f -name "Image*" -exec cp {} $KERNEL_DESTINATION_DIR \;
+
+popd
+
+echo "签名模块..."
+make $V $O modules_install INSTALL_MOD_PATH=modules 2> >(tee $LOGS_DIR/modules-error.log) 1> >(tee $LOGS_DIR/modules-info.log)
+
+echo "复制模块..."
+MODULES_DESTINATION_DIR=$DESTINATION_DIR/modules
+mkdir -p $MODULES_DESTINATION_DIR
+pushd $BUILD_DIR/modules
+
+find . -type f -name "*.ko" -exec cp {} $MODULES_DESTINATION_DIR \;
+
+popd
+
+popd
+
+ccache -s -v
