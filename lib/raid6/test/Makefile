@@ -3,7 +3,7 @@
 # from userspace.
 #
 
-CC	 = gcc
+CC	 = $(CCACHE) $(CROSS_COMPILE)gcc
 OPTFLAGS = -O2			# Adjust as desired
 CFLAGS	 = -I.. -I ../../../include -g $(OPTFLAGS)
 LD	 = ld

@@ -1,6 +1,6 @@
 # Makefile for USB tools
 
-CC = $(CROSS_COMPILE)gcc
+CC = $(CCACHE) $(CROSS_COMPILE)gcc
 PTHREAD_LIBS = -lpthread
 WARNINGS = -Wall -Wextra
 CFLAGS = $(WARNINGS) -g -I../include

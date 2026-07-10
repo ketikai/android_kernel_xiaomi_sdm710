@@ -1,6 +1,6 @@
 prefix = /usr
 
-CC = gcc
+CC = $(CCACHE) $(CROSS_COMPILE)gcc
 LEX = flex
 YACC = bison
 

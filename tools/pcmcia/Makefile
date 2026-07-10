@@ -1,4 +1,4 @@
-CC := $(CROSS_COMPILE)gcc
+CC := $(CCACHE) $(CROSS_COMPILE)gcc
 CFLAGS := -I../../usr/include
 
 PROGS := crc32hash

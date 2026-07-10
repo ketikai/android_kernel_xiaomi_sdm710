@@ -51,7 +51,7 @@ FILES=					\
 
 FILES := $(addprefix $(OUTPUT),$(FILES))
 
-CC := $(CROSS_COMPILE)gcc -MD
+CC := $(CCACHE) $(CROSS_COMPILE)gcc -MD
 CXX := $(CROSS_COMPILE)g++ -MD
 PKG_CONFIG := $(CROSS_COMPILE)pkg-config
 

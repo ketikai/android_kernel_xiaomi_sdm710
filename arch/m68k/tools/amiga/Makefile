@@ -1,5 +1,5 @@
 
-CC =		m68k-cbm-amigados-gcc
+CC = $(CCACHE) m68k-cbm-amigados-gcc
 CFLAGS =	-Wall -O2
 
 

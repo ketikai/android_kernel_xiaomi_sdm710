@@ -1,4 +1,4 @@
-CC := $(CROSS_COMPILE)gcc
+CC := $(CCACHE) $(CROSS_COMPILE)gcc
 PROGS := watchdog-simple
 
 all: $(PROGS)

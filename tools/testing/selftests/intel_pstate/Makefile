@@ -1,4 +1,4 @@
-CC := $(CROSS_COMPILE)gcc
+CC := $(CCACHE) $(CROSS_COMPILE)gcc
 CFLAGS := $(CFLAGS) -Wall -D_GNU_SOURCE
 LDFLAGS := $(LDFLAGS) -lm
 

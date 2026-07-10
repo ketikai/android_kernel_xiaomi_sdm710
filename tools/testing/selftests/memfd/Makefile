@@ -1,4 +1,4 @@
-CC = $(CROSS_COMPILE)gcc
+CC = $(CCACHE) $(CROSS_COMPILE)gcc
 CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += -I../../../../include/uapi/
 CFLAGS += -I../../../../include/

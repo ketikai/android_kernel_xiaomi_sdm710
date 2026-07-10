@@ -1,7 +1,7 @@
 prefix = /usr
 nosy-dump-version = 0.4
 
-CC = gcc
+CC = $(CCACHE) $(CROSS_COMPILE)gcc
 
 all : nosy-dump
 

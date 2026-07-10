@@ -5,7 +5,7 @@ ARCH ?= $(shell echo $(uname_M) | sed -e s/i.86/x86/ -e s/x86_64/x86/)
 ifeq ($(ARCH),x86)
 
 PROGS := mpssd
-CC = $(CROSS_COMPILE)gcc
+CC = $(CCACHE) $(CROSS_COMPILE)gcc
 CFLAGS := -I../../../usr/include -I../../../tools/include
 
 ifdef DEBUG
