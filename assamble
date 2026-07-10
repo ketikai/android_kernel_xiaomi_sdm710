@@ -191,13 +191,15 @@ export PATH="$TOOLCHAIN_DIR/gcc/aarch64-linux-gnu/bin:$PATH"
 export PATH="$TOOLCHAIN_DIR/gcc/arm-linux-gnueabi/bin:$PATH"
 export PATH="$TOOLCHAIN_DIR/clang/bin:$PATH"
 
-echo "配置缓存..."
-export CCACHE="ccache"
-export CCACHE_DIR=$CACHE_DIR
-ccache --show-config
-if (( $CLEAN != 0 )); then
-  echo "清理缓存..."
-  ccache -zC
+if command -v ccache >/dev/null 2>&1; then
+  echo "配置缓存..."
+  export CCACHE="ccache"
+  export CCACHE_DIR=$CACHE_DIR
+  ccache --show-config
+  if (( $CLEAN != 0 )); then
+    echo "清理缓存..."
+    ccache -zC
+  fi
 fi
 
 V=$((( $VERBOSE != 0 )) && echo 'V=1' || echo 'V=s')
@@ -259,4 +261,6 @@ popd
 
 popd
 
-ccache -s -v
+if command -v ccache >/dev/null 2>&1; then
+  ccache -s -v
+fi
