@@ -121,7 +121,7 @@ jobs:
     - name: Download Prebuilt Clang Toolchain
       if: inputs.llvm == true && steps.prebuilt_clang_toolchain_cache.outputs.cache-hit != true
       run: |
-        wget -O - ${{ inputs.prebuilt_clang_toolchain }} | tar -xJvf - -C ${{ steps.prepare_prebuilt.outputs.CLANG_TOOLCHAIN_DIR }}
+        wget -nv -O - ${{ inputs.prebuilt_clang_toolchain }} | tar -xJvf - -C ${{ steps.prepare_prebuilt.outputs.CLANG_TOOLCHAIN_DIR }}
 
     - name: Download Prebuilt GCC Toolchain From Cache
       uses: actions/cache@v6
@@ -134,7 +134,7 @@ jobs:
     - name: Download Prebuilt GCC Toolchain
       if: inputs.llvm == false && steps.prebuilt_gcc_toolchain_cache.outputs.cache-hit != true
       run: |
-        wget -O - ${{ inputs.prebuilt_gcc_toolchain }} | tar -xJvf - -C ${{ steps.prepare_prebuilt.outputs.GCC_TOOLCHAIN_DIR }}
+        wget -nv -O - ${{ inputs.prebuilt_gcc_toolchain }} | tar -xJvf - -C ${{ steps.prepare_prebuilt.outputs.GCC_TOOLCHAIN_DIR }}
 
     - name: KernelSU Integration
       run: |
