@@ -4,14 +4,32 @@
 
 set -e
 
+echo "展开调用: "
+echo "$0 $*"
+
+PREBUILT_DIR=""
+CACHE_DIR=""
+WORK_DIR=$(realpath -m ".")
+JOBS=$(($(nproc) * 2 - 1))
+BEAR=0
+LLVM=0
+CROSS_COMPILE=""
+LOCALVERSION=""
+BUILD_DIR=$(realpath -m ".build")
+VERBOSE=0
+LOGS_DIR=$(realpath -m ".logs")
+DESTINATION_DIR=$(realpath -m ".target")
+SIGNING_KEY_FILE=""
+CLEAN=0
+
 if (( $# < 2 )); then
-  echo "用法: $0 <arch> <device> [选项 [值]...]..."
+  echo "用法: $0 <arch> <device> [选项 [值]...]... [自定义环境变量: KEY=VALUE]..."
   echo "  可用选项:"
   echo "    -p, --prebuilt <prebuilt_dir>"
   echo "        指定预构建库/包目录，默认: '$PREBUILT_DIR'"
   echo ""
   echo "    -c, --cache <cache_dir>"
-  echo "        指定缓存的存放目录，默认: '$CACHE_DIR'"
+  echo "        指定缓存的存放目录，为空时禁用缓存，默认: '$CACHE_DIR'"
   echo ""
   echo "    -w, --work <work_dir>"
   echo "        指定工作目录，默认: '$WORK_DIR'"
@@ -19,11 +37,15 @@ if (( $# < 2 )); then
   echo "    -j, --jobs <size>"
   echo "        指定工作线程数量，默认: $JOBS"
   echo ""
-  echo "        --clean"
-  echo "        在构建之前进行清理，默认: $((( $CLEAN != 0)) && echo '启用' || echo '禁用')"
+  echo "        --bear"
+  echo "        使用 bear -- make 生成 JSON 编译数据库，用于 VSCode + Clangd 开发补全等功能"
+  echo "        与 --cache 不兼容，默认: $((( $BEAR != 0 )) && echo '启用' || echo '禁用')"
   echo ""
   echo "        --llvm"
-  echo "        使用 Clang/Clang++ 作为主要编译器，默认: $((( $LLVM != 0)) && echo '启用' || echo '禁用')"
+  echo "        使用 Clang/Clang++ 作为主要编译器，默认: $((( $LLVM != 0 )) && echo '启用' || echo '禁用')"
+  echo ""
+  echo "        --cross <cross_compile>"
+  echo "        指定 CROSS_COMPILE 的值，默认: '$CROSS_COMPILE'"
   echo ""
   echo "        --version <localversion>"
   echo "        指定 LOCALVERSION 的值，默认: '$LOCALVERSION'"
@@ -32,7 +54,7 @@ if (( $# < 2 )); then
   echo "        指定构建目录，默认: '$BUILD_DIR'"
   echo ""
   echo "    -v, --verbose"
-  echo "        使用构建参数 'V=1' 来启用更详细的日志，默认: $((( $VERBOSE != 0)) && echo '启用' || echo '禁用')"
+  echo "        使用构建参数 'V=1' 来启用更详细的日志，默认: $((( $VERBOSE != 0 )) && echo '启用' || echo '禁用')"
   echo ""
   echo "        --logs <logs_dir>"
   echo "        指定日志文件的存放目录，默认: '$LOGS_DIR'"
@@ -43,7 +65,10 @@ if (( $# < 2 )); then
   echo "    -s, --signing <key_file>"
   echo "        指定签名密钥文件，默认: '$SIGNING_KEY_FILE'"
   echo ""
-  echo "示例: $0 arm64 grus --llvm --version wabby-wabbo -s .signing_key.pem"
+  echo "        --clean"
+  echo "        在构建之前进行清理，默认: $((( $CLEAN != 0 )) && echo '启用' || echo '禁用')"
+  echo ""
+  echo "示例: $0 arm64 grus --cross aarch64-linux-gnu --version wabby-wabbo -s .signing_key.pem CROSS_COMPILE_ARM32=arm-linux-gnueabi-"
   exit 1
 fi
 
@@ -60,21 +85,21 @@ fi
 DEVICE="$1"
 shift
 
-PREBUILT_DIR=$(realpath -m ".prebuilt")
-CACHE_DIR=$(realpath -m ".cache")
-WORK_DIR=$(realpath -m ".")
-JOBS=$(($(nproc) * 2 - 1))
-CLEAN=0
-LLVM=0
-LOCALVERSION=""
-BUILD_DIR=$(realpath -m ".build")
-VERBOSE=0
-LOGS_DIR=$(realpath -m ".logs")
-DESTINATION_DIR=$(realpath -m ".target")
-SIGNING_KEY_FILE=""
-
 while [ $# -gt 0 ]; do
   case "$1" in
+    -v|--verbose)
+      VERBOSE=1
+      shift
+      ;;
+    --logs)
+      if [ -n "$2" ]; then
+        LOGS_DIR=$(realpath -m "$2")
+        shift 2
+      else
+        echo "无效选项: $1: 必须提供一个有效的目录路径" >&2
+        exit 1
+      fi
+      ;;
     -p|--prebuilt)
       if [ -n "$2" ]; then
         PREBUILT_DIR=$(realpath -m "$2")
@@ -111,13 +136,22 @@ while [ $# -gt 0 ]; do
         exit 1
       fi
       ;;
-    --clean)
-      CLEAN=1
+    --bear)
+      BEAR=1
       shift
       ;;
     --llvm)
       LLVM=1
       shift
+      ;;
+    --cross)
+      if [ -n "$2" ]; then
+        CROSS_COMPILE="$2"
+        shift 2
+      else
+        echo "无效选项: $1: 必须提供一个有效的交叉编译器平台" >&2
+        exit 1
+      fi
       ;;
     --version)
       if [ -n "$2" ]; then
@@ -135,19 +169,6 @@ while [ $# -gt 0 ]; do
           echo "无效选项: $1: 构建目录不能与工作目录相同" >&2
           exit 1
         fi
-        shift 2
-      else
-        echo "无效选项: $1: 必须提供一个有效的目录路径" >&2
-        exit 1
-      fi
-      ;;
-    -v|--verbose)
-      VERBOSE=1
-      shift
-      ;;
-    --logs)
-      if [ -n "$2" ]; then
-        LOGS_DIR=$(realpath -m "$2")
         shift 2
       else
         echo "无效选项: $1: 必须提供一个有效的目录路径" >&2
@@ -172,13 +193,16 @@ while [ $# -gt 0 ]; do
         exit 1
       fi
       ;;
+    --clean)
+      CLEAN=1
+      shift
+      ;;
     -*)
       echo "无效选项: $1" >&2
       exit 1
       ;;
     *)
-      echo "无效值: $1" >&2
-      exit 1
+      break
       ;;
   esac
 done
@@ -186,43 +210,98 @@ done
 echo "工作线程: $JOBS"
 pushd $WORK_DIR
 
-TOOLCHAIN_DIR="$PREBUILT_DIR/toolchain"
-export PATH="$TOOLCHAIN_DIR/gcc/aarch64-linux-gnu/bin:$PATH"
-export PATH="$TOOLCHAIN_DIR/gcc/arm-linux-gnueabi/bin:$PATH"
-export PATH="$TOOLCHAIN_DIR/clang/bin:$PATH"
+export ARCH="$ARCH"
 
-if command -v ccache >/dev/null 2>&1; then
-  echo "配置缓存..."
-  export CCACHE="ccache"
-  export CCACHE_DIR=$CACHE_DIR
-  ccache --show-config
-  if (( $CLEAN != 0 )); then
-    echo "清理缓存..."
-    ccache -zC
-  fi
+if [[ -n "$PREBUILT_DIR" ]]; then
+  TOOLCHAIN_DIR="$PREBUILT_DIR/toolchain"
 fi
-
-V=$((( $VERBOSE != 0 )) && echo 'V=1' || echo 'V=s')
-O="O=$BUILD_DIR"
 
 if (( $LLVM != 0 )); then
   export LLVM=1
+  export LLVM_IAS=1
+
+  __DIR="$TOOLCHAIN_DIR/clang/bin"
+  if [[ -n "$TOOLCHAIN_DIR" && -d "$__DIR" ]]; then
+    export PATH="$__DIR:$PATH"
+  fi
+else
+  if [[ -n "$TOOLCHAIN_DIR" ]]; then
+    for dir in $TOOLCHAIN_DIR/gcc/*/; do
+      __DIR="${dir%/}/bin"
+      if [ -d "$__DIR" ]; then
+        export PATH="$__DIR:$PATH"
+      fi
+    done
+  fi
+fi
+
+if [[ -n $CROSS_COMPILE ]]; then
+  export CROSS_COMPILE="${CROSS_COMPILE}-"
 fi
 
 if [[ -n "$LOCALVERSION" ]]; then
   export LOCALVERSION="-$LOCALVERSION"
 fi
 
-export CROSS_COMPILE="aarch64-linux-gnu-"
-export CROSS_COMPILE_ARM32="arm-linux-gnueabi-"
-export CROSS_TRIPLE="aarch64-linux-gnu-"
-export ARCH="$ARCH"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    *=*)
+      export "$1"
+      shift
+      ;;
+    *)
+      echo "无效的环境变量: $1: 格式应为 KEY=VALUE" >&2
+      exit 1
+      ;;
+  esac
+done
+
+echo "打印环境变量..."
+if (( $VERBOSE != 0 )); then
+  printenv
+fi
+
+V=$((( $VERBOSE != 0 )) && echo 'V=1' || echo 'V=s')
+O="O=$BUILD_DIR"
 
 echo "初始化构建..."
 rm -rf $LOGS_DIR
 mkdir -p $LOGS_DIR
-make $V $O mrproper 2> >(tee $LOGS_DIR/mrproper-error.log) 1> >(tee $LOGS_DIR/mrproper-info.log)
-make $V mrproper 2> >(tee $LOGS_DIR/mrproper-error.log) 1> >(tee $LOGS_DIR/mrproper-info.log)
+
+if [[ -n "$CACHE_DIR" ]]; then
+  echo "配置缓存..."
+  if command -v ccache >/dev/null 2>&1; then
+    export CCACHE="ccache"
+    export CCACHE_DIR="$CACHE_DIR"
+    ccache --show-config
+    if (( $CLEAN != 0 )); then
+      echo "清理缓存..."
+      ccache -zC
+    fi
+  else
+    echo "CCache 未安装，跳过缓存..."
+  fi
+fi
+
+BEAR_BRIDGE=""
+if (( $BEAR != 0 )); then
+  if [[ ! -n "$CCACHE" ]]; then
+    if command -v bear >/dev/null 2>&1; then
+      echo "启用生成 JSON 编译数据库..."
+      BEAR_BRIDGE="bear --"
+    else
+      echo "Bear 未安装，跳过生成 JSON 编译数据库..."
+    fi
+  else
+    echo "已启用 CCache ，跳过生成 JSON 编译数据库..."
+  fi
+fi
+
+if (( $CLEAN != 0 )); then
+  echo "清理构建..."
+  make $V $O mrproper 2> >(tee $LOGS_DIR/mrproper-error.log) 1> >(tee $LOGS_DIR/mrproper-info.log)
+  make $V mrproper 2>> >(tee $LOGS_DIR/mrproper-error.log) 1>> >(tee $LOGS_DIR/mrproper-info.log)
+fi
 
 echo "生成配置..."
 DEFAULT_CONFIG="${DEVICE}_defconfig"
@@ -235,7 +314,7 @@ if [[ -n "$SIGNING_KEY_FILE" ]]; then
 fi
 
 echo "构建内核..."
-make $V $O -j$JOBS 2> >(tee $LOGS_DIR/kernel-error.log) 1> >(tee $LOGS_DIR/kernel-info.log)
+$BEAR_BRIDGE make $V $O -j$JOBS 2> >(tee $LOGS_DIR/kernel-error.log) 1> >(tee $LOGS_DIR/kernel-info.log)
 
 echo "复制内核..."
 KERNEL_DESTINATION_DIR=$DESTINATION_DIR/kernel
@@ -243,7 +322,7 @@ mkdir -p $KERNEL_DESTINATION_DIR
 cp $BUILD_DIR/vmlinux $KERNEL_DESTINATION_DIR
 pushd $BUILD_DIR/arch/$ARCH/boot
 
-find . -type f -name "Image*" -exec cp {} $KERNEL_DESTINATION_DIR \;
+find . -type f -name "Image*" -exec cp -v {} $KERNEL_DESTINATION_DIR \;
 
 popd
 
@@ -255,12 +334,12 @@ MODULES_DESTINATION_DIR=$DESTINATION_DIR/modules
 mkdir -p $MODULES_DESTINATION_DIR
 pushd $BUILD_DIR/modules
 
-find . -type f -name "*.ko" -exec cp {} $MODULES_DESTINATION_DIR \;
+find . -type f -name "*.ko" -exec cp -v {} $MODULES_DESTINATION_DIR \;
 
 popd
 
 popd
 
-if command -v ccache >/dev/null 2>&1; then
+if [[ -n "$CCACHE" ]]; then
   ccache -s -v
 fi
