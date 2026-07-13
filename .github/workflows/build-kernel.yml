@@ -63,6 +63,11 @@ on:
         type: string
         required: false
         default: master
+      anykernel:
+        description: Assemble AnyKernel
+        type: boolean
+        required: false
+        default: true
       prebuilt_anykernel_package:
         description: Prebuilt - AnyKernel Package
         type: string
@@ -75,7 +80,7 @@ env:
   PREBUILT_DIR: .prebuilt
   DESTINATION_DIR: .target
   BUILD_ARTIFACT: kernel
-  ASSAMBLE_ARTIFACT: anykernel
+  ASSEMBLE_ARTIFACT: anykernel
 
 jobs:
   build:
@@ -137,7 +142,7 @@ jobs:
           curl -LSs ${{ inputs.ksu_setup_script }} | bash -s ${{ inputs.ksu_setup_branch }}
         fi
 
-    - name: Execute assamble
+    - name: Execute assemble
       run: |
         VERBOSE=$(${{ inputs.verbose_logs }} && echo "-v" || echo "")
         LLVM=$(${{ inputs.llvm }} && echo "--llvm" || echo "")
@@ -145,7 +150,7 @@ jobs:
         VERSION=$([[ -n "${{ inputs.kernel_localversion }}" ]] && echo "--version ${{ inputs.kernel_localversion }}" || echo "")
         SIGNING=$([[ -n "${{ secrets.SIGNING_KEY }}" ]] && echo "${{ secrets.SIGNING_KEY }}" > ".signing_key.pem"; echo "-s .signing_key.pem" || echo "")
         CUSTOM_CONFIG=$([[ -n "${{ inputs.kernel_custom_env }}" ]] && echo "${{ inputs.kernel_custom_env }}" || echo "")
-        ./assamble ${{ inputs.kernel_arch }} ${{ inputs.kernel_device }} $VERBOSE -p ${{ env.PREBUILT_DIR }} $LLVM $CROSS_COMPILE $VERSION $SIGNING -d ${{ env.DESTINATION_DIR }} $CUSTOM_CONFIG
+        ./assemble ${{ inputs.kernel_arch }} ${{ inputs.kernel_device }} $VERBOSE -p ${{ env.PREBUILT_DIR }} $LLVM $CROSS_COMPILE $VERSION $SIGNING -d ${{ env.DESTINATION_DIR }} $CUSTOM_CONFIG
 
     - name: Upload Kernel And Modules
       uses: actions/upload-artifact@v7
@@ -157,10 +162,11 @@ jobs:
         overwrite: true
         include-hidden-files: true
   
-  assamble:
+  assemble:
     runs-on: ubuntu-22.04
     needs: 
     - build
+    if: inputs.anykernel == true
     steps:
     - name: Download Prebuilt AnyKernel Package
       run: |
@@ -180,7 +186,7 @@ jobs:
     - name: Upload AnyKernel Package
       uses: actions/upload-artifact@v7
       with:
-        name: ${{ env.ASSAMBLE_ARTIFACT }}
+        name: ${{ env.ASSEMBLE_ARTIFACT }}
         path: |
           ${{ env.DESTINATION_DIR }}/*
         if-no-files-found: error
