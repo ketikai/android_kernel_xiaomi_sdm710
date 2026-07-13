@@ -1,4 +1,4 @@
-CC = $(CCACHE) $(CROSS_COMPILE)gcc
+CC = $(CROSS_COMPILE)gcc
 
 all: spidev_test spidev_fdx
 

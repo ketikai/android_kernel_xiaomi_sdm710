@@ -1,4 +1,4 @@
-CC = $(CCACHE) $(CROSS_COMPILE)gcc
+CC = gcc
 CFLAGS = -O2 -Wall -pthread
 
 all: trace-agent

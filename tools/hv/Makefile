@@ -1,6 +1,6 @@
 # Makefile for Hyper-V tools
 
-CC = $(CCACHE) $(CROSS_COMPILE)gcc
+CC = $(CROSS_COMPILE)gcc
 PTHREAD_LIBS = -lpthread
 WARNINGS = -Wall -Wextra
 CFLAGS = $(WARNINGS) -g $(PTHREAD_LIBS) $(shell getconf LFS_CFLAGS)

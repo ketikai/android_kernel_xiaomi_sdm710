@@ -1,4 +1,4 @@
-CC = $(CCACHE) $(CROSS_COMPILE)gcc
+CC = $(CROSS_COMPILE)gcc
 CFLAGS += -Wall -g -D_GNU_SOURCE
 
 BINDIR=usr/bin

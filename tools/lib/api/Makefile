@@ -8,7 +8,7 @@ srctree := $(patsubst %/,%,$(dir $(srctree)))
 #$(info Determined 'srctree' to be $(srctree))
 endif
 
-CC = $(CCACHE) $(CROSS_COMPILE)gcc
+CC = $(CROSS_COMPILE)gcc
 AR = $(CROSS_COMPILE)ar
 LD = $(CROSS_COMPILE)ld
 
