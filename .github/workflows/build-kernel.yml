@@ -3,6 +3,11 @@ name: Build Kernel
 on:
   workflow_call:
     inputs: &workflow_inputs
+      verbose_logs:
+        description: More detailed logs
+        type: boolean
+        required: false
+        default: false
       kernel_arch:
         description: Kernel - Arch
         type: string
@@ -13,26 +18,41 @@ on:
         type: string
         required: false
         default: grus
-      llvm:
-        description: Use LLVM/Clang
-        type: boolean
-        required: false
-        default: true
-      verbose:
-        description: Enable more detailed logs
-        type: boolean
-        required: false
-        default: false
-      ksu:
-        description: With KernelSU
-        type: boolean
-        required: false
-        default: false
       kernel_localversion:
         description: Kernel - Local Version
         type: string
         required: false
         default: wabby-wabbo
+      kernel_cross_compile:
+        description: Kernel - Cross Compile
+        type: string
+        required: false
+        default: aarch64-linux-gnu
+      kernel_custom_env:
+        description: Kernel - Custom ENV
+        type: string
+        required: false
+        default: CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+      llvm:
+        description: Use LLVM / Clang
+        type: boolean
+        required: false
+        default: true
+      prebuilt_clang_toolchain:
+        description: Prebuilt - Clang Toolchain
+        type: string
+        required: false
+        default: https://github.com/ketikai/android_kernel_xiaomi_sdm710/releases/download/prebuilt/clang-r596125.tar.xz
+      prebuilt_gcc_toolchain:
+        description: Prebuilt - GCC Toolchain
+        type: string
+        required: false
+        default: https://github.com/ketikai/android_kernel_xiaomi_sdm710/releases/download/prebuilt/linaro-gcc.tar.xz
+      ksu:
+        description: With KernelSU
+        type: boolean
+        required: false
+        default: false
       ksu_setup_script:
         description: KernelSU - Setup Script
         type: string
@@ -43,16 +63,6 @@ on:
         type: string
         required: false
         default: master
-      prebuilt_gcc_toolchain:
-        description: Prebuilt - GCC Toolchain
-        type: string
-        required: false
-        default: https://github.com/ketikai/android_kernel_xiaomi_sdm710/releases/download/prebuilt/linaro-gcc.tar.xz
-      prebuilt_clang_toolchain:
-        description: Prebuilt - Clang Toolchain
-        type: string
-        required: false
-        default: https://github.com/ketikai/android_kernel_xiaomi_sdm710/releases/download/prebuilt/proton-clang.tar.xz
       prebuilt_anykernel_package:
         description: Prebuilt - AnyKernel Package
         type: string
@@ -62,6 +72,7 @@ on:
     inputs: *workflow_inputs
     
 env:
+  PREBUILT_DIR: .prebuilt
   DESTINATION_DIR: .target
   BUILD_ARTIFACT: kernel
   ASSAMBLE_ARTIFACT: anykernel
@@ -73,48 +84,52 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v7
 
-    - name: Prepare Prebuilt 
+    - name: Prepare Prebuilt
       id: prepare_prebuilt
       env:
-        TOOLCHAIN_DIR: .prebuilt/toolchain
+        TOOLCHAIN_DIR: ${{ env.PREBUILT_DIR }}/toolchain
       run: |
-        DIR="${{ env.TOOLCHAIN_DIR }}/gcc"
-        mkdir -p $DIR
-        echo "GCC_TOOLCHAIN_DIR=$DIR" >> $GITHUB_OUTPUT
-        CACHE_KEY="${{ env.TOOLCHAIN_DIR }}/.GCC_TOOLCHAIN_CACHE_KEY"
-        echo "${{ inputs.prebuilt_gcc_toolchain }}" > $CACHE_KEY
-        echo "GCC_TOOLCHAIN_CACHE_KEY=$CACHE_KEY" >> $GITHUB_OUTPUT
-
-        DIR="${{ env.TOOLCHAIN_DIR }}/clang"
-        mkdir -p $DIR
-        echo "CLANG_TOOLCHAIN_DIR=$DIR" >> $GITHUB_OUTPUT
-        CACHE_KEY="${{ env.TOOLCHAIN_DIR }}/.CLANG_TOOLCHAIN_CACHE_KEY"
-        echo "${{ inputs.prebuilt_clang_toolchain }}" > $CACHE_KEY
-        echo "CLANG_TOOLCHAIN_CACHE_KEY=$CACHE_KEY" >> $GITHUB_OUTPUT
-
-    - name: Download Prebuilt GCC Toolchain From Cache
-      uses: actions/cache@v6
-      id: prebuilt_gcc_toolchain_cache
-      with:
-        path: ${{ steps.prepare_prebuilt.outputs.GCC_TOOLCHAIN_DIR }}
-        key: ${{ runner.os }}-${{ runner.arch }}-prebuilt-gcc-toolchain-${{ hashFiles(steps.prepare_prebuilt.outputs.GCC_TOOLCHAIN_CACHE_KEY) }}
-
-    - name: Download Prebuilt GCC Toolchain
-      if: steps.prebuilt_gcc_toolchain_cache.outputs.cache-hit != true
-      run: |
-        wget -O - ${{ inputs.prebuilt_gcc_toolchain }} | tar -xJvf - -C ${{ steps.prepare_prebuilt.outputs.GCC_TOOLCHAIN_DIR }}
+        if ${{ inputs.llvm }}; then
+          DIR="${{ env.TOOLCHAIN_DIR }}/clang"
+          mkdir -p $DIR
+          echo "CLANG_TOOLCHAIN_DIR=$DIR" >> $GITHUB_OUTPUT
+          CACHE_KEY="${{ env.TOOLCHAIN_DIR }}/.CLANG_TOOLCHAIN_CACHE_KEY"
+          echo "${{ inputs.prebuilt_clang_toolchain }}" > $CACHE_KEY
+          echo "CLANG_TOOLCHAIN_CACHE_KEY=$CACHE_KEY" >> $GITHUB_OUTPUT
+        else
+          DIR="${{ env.TOOLCHAIN_DIR }}/gcc"
+          mkdir -p $DIR
+          echo "GCC_TOOLCHAIN_DIR=$DIR" >> $GITHUB_OUTPUT
+          CACHE_KEY="${{ env.TOOLCHAIN_DIR }}/.GCC_TOOLCHAIN_CACHE_KEY"
+          echo "${{ inputs.prebuilt_gcc_toolchain }}" > $CACHE_KEY
+          echo "GCC_TOOLCHAIN_CACHE_KEY=$CACHE_KEY" >> $GITHUB_OUTPUT
+        fi
 
     - name: Download Prebuilt Clang Toolchain From Cache
       uses: actions/cache@v6
       id: prebuilt_clang_toolchain_cache
+      if: inputs.llvm == true
       with:
         path: ${{ steps.prepare_prebuilt.outputs.CLANG_TOOLCHAIN_DIR }}
         key: ${{ runner.os }}-${{ runner.arch }}-prebuilt-clang-toolchain-${{ hashFiles(steps.prepare_prebuilt.outputs.CLANG_TOOLCHAIN_CACHE_KEY) }}
 
     - name: Download Prebuilt Clang Toolchain
-      if: steps.prebuilt_clang_toolchain_cache.outputs.cache-hit != true
+      if: inputs.llvm == true && steps.prebuilt_clang_toolchain_cache.outputs.cache-hit != true
       run: |
         wget -O - ${{ inputs.prebuilt_clang_toolchain }} | tar -xJvf - -C ${{ steps.prepare_prebuilt.outputs.CLANG_TOOLCHAIN_DIR }}
+
+    - name: Download Prebuilt GCC Toolchain From Cache
+      uses: actions/cache@v6
+      id: prebuilt_gcc_toolchain_cache
+      if: inputs.llvm == false
+      with:
+        path: ${{ steps.prepare_prebuilt.outputs.GCC_TOOLCHAIN_DIR }}
+        key: ${{ runner.os }}-${{ runner.arch }}-prebuilt-gcc-toolchain-${{ hashFiles(steps.prepare_prebuilt.outputs.GCC_TOOLCHAIN_CACHE_KEY) }}
+
+    - name: Download Prebuilt GCC Toolchain
+      if: inputs.llvm == false && steps.prebuilt_gcc_toolchain_cache.outputs.cache-hit != true
+      run: |
+        wget -O - ${{ inputs.prebuilt_gcc_toolchain }} | tar -xJvf - -C ${{ steps.prepare_prebuilt.outputs.GCC_TOOLCHAIN_DIR }}
 
     - name: KernelSU Integration
       run: |
@@ -124,11 +139,13 @@ jobs:
 
     - name: Execute assamble
       run: |
+        VERBOSE=$(${{ inputs.verbose_logs }} && echo "-v" || echo "")
         LLVM=$(${{ inputs.llvm }} && echo "--llvm" || echo "")
+        CROSS_COMPILE=$([[ -n "${{ inputs.kernel_cross_compile }}" ]] && echo "--cross ${{ inputs.kernel_cross_compile }}" || echo "")
         VERSION=$([[ -n "${{ inputs.kernel_localversion }}" ]] && echo "--version ${{ inputs.kernel_localversion }}" || echo "")
         SIGNING=$([[ -n "${{ secrets.SIGNING_KEY }}" ]] && echo "${{ secrets.SIGNING_KEY }}" > ".signing_key.pem"; echo "-s .signing_key.pem" || echo "")
-        VERBOSE=$(${{ inputs.verbose }} && echo "-v" || echo "")
-        ./assamble ${{ inputs.kernel_arch }} ${{ inputs.kernel_device }} $LLVM $VERSION $SIGNING $VERBOSE -d ${{ env.DESTINATION_DIR }}
+        CUSTOM_CONFIG=$([[ -n "${{ inputs.kernel_custom_env }}" ]] && echo "${{ inputs.kernel_custom_env }}" || echo "")
+        ./assamble ${{ inputs.kernel_arch }} ${{ inputs.kernel_device }} $VERBOSE -p ${{ env.PREBUILT_DIR }} $LLVM $CROSS_COMPILE $VERSION $SIGNING -d ${{ env.DESTINATION_DIR }} $CUSTOM_CONFIG
 
     - name: Upload Kernel And Modules
       uses: actions/upload-artifact@v7
