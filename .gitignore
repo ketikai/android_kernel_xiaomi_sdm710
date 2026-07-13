@@ -127,3 +127,6 @@ out
 
 # Includ '.github'
 !.github
+
+# Ignoring Bear JSON compilation database
+compile_commands*.json
