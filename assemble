@@ -29,7 +29,8 @@ if (( $# < 2 )); then
   echo "        指定预构建库/包目录，默认: '$PREBUILT_DIR'"
   echo ""
   echo "    -c, --cache <cache_dir>"
-  echo "        指定缓存的存放目录，为空时禁用缓存，默认: '$CACHE_DIR'"
+  echo "        指定缓存的存放根目录，基于 --version 来自动创建缓存子目录"
+  echo "        为空时禁用缓存，默认: '$CACHE_DIR'"
   echo ""
   echo "    -w, --work <work_dir>"
   echo "        指定工作目录，默认: '$WORK_DIR'"
@@ -239,6 +240,7 @@ if [[ -n $CROSS_COMPILE ]]; then
   export CROSS_COMPILE="${CROSS_COMPILE}-"
 fi
 
+CACHE_VERSION="$LOCALVERSION"
 if [[ -n "$LOCALVERSION" ]]; then
   export LOCALVERSION="-$LOCALVERSION"
 fi
@@ -272,7 +274,11 @@ if [[ -n "$CACHE_DIR" ]]; then
   echo "配置缓存..."
   if command -v ccache >/dev/null 2>&1; then
     export CCACHE="ccache"
-    export CCACHE_DIR="$CACHE_DIR"
+    if [[ -n "$CACHE_VERSION" ]]; then
+      export CCACHE_DIR="$CACHE_DIR/$CACHE_VERSION"
+    else
+      export CCACHE_DIR="$CACHE_DIR"
+    fi
     ccache --show-config
     if (( $CLEAN != 0 )); then
       echo "清理缓存..."
