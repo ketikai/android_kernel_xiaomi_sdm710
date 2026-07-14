@@ -39,8 +39,8 @@ if (( $# < 2 )); then
   echo "        指定工作线程数量，默认: $JOBS"
   echo ""
   echo "        --bear"
-  echo "        使用 bear -- make 生成 JSON 编译数据库，用于 VSCode + Clangd 开发补全等功能"
-  echo "        与 --cache 不兼容，默认: $((( $BEAR != 0 )) && echo '启用' || echo '禁用')"
+  echo "        使用 bear -- make 生成 JSON 编译数据库"
+  echo "        用于 VSCode + Clangd 开发补全等功能，默认: $((( $BEAR != 0 )) && echo '启用' || echo '禁用')"
   echo ""
   echo "        --llvm"
   echo "        使用 Clang/Clang++ 作为主要编译器，默认: $((( $LLVM != 0 )) && echo '启用' || echo '禁用')"
@@ -291,15 +291,11 @@ fi
 
 BEAR_BRIDGE=""
 if (( $BEAR != 0 )); then
-  if [[ ! -n "$CCACHE" ]]; then
-    if command -v bear >/dev/null 2>&1; then
-      echo "启用生成 JSON 编译数据库..."
-      BEAR_BRIDGE="bear --"
-    else
-      echo "Bear 未安装，跳过生成 JSON 编译数据库..."
-    fi
+  if command -v bear >/dev/null 2>&1; then
+    echo "启用生成 JSON 编译数据库..."
+    BEAR_BRIDGE="bear --"
   else
-    echo "已启用 CCache ，跳过生成 JSON 编译数据库..."
+    echo "Bear 未安装，跳过生成 JSON 编译数据库..."
   fi
 fi
 
