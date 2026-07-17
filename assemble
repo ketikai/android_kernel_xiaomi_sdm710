@@ -21,9 +21,10 @@ LOGS_DIR=$(realpath -m ".logs")
 DESTINATION_DIR=$(realpath -m ".target")
 SIGNING_KEY_FILE=""
 CLEAN=0
+declare -A CONFIGS=()
 
 if (( $# < 2 )); then
-  echo "用法: $0 <arch> <device> [选项 [值]...]... [自定义环境变量: KEY=VALUE]..."
+  echo "用法: $0 <arch> <device> [选项 [值]...]... [自定义环境变量/配置: KEY=VALUE]..."
   echo "  可用选项:"
   echo "    -p, --prebuilt <prebuilt_dir>"
   echo "        指定预构建库/包目录，默认: '$PREBUILT_DIR'"
@@ -248,7 +249,17 @@ fi
 while [ $# -gt 0 ]; do
   case "$1" in
     *=*)
-      export "$1"
+      if [[ "$1" == CONFIG_* ]]; then
+        __KEY="${__CONFIG%%=*}"
+        if [[ ! -n "$__KEY" ]]; then
+          echo "无效的配置: $1: 格式应为 KEY=VALUE ，且 KEY 不能为 '$__KEY'" >&2
+          exit 1
+        fi
+        __VALUE="${__CONFIG#*=}"
+        CONFIGS["${__KEY#CONFIG_}"]="$__VALUE"
+      else
+        export "$1"
+      fi
       shift
       ;;
     *)
@@ -309,9 +320,43 @@ echo "生成配置..."
 DEFAULT_CONFIG="${DEVICE}_defconfig"
 make $V $O $DEFAULT_CONFIG 2> >(tee $LOGS_DIR/defconfig-error.log) 1> >(tee $LOGS_DIR/defconfig-info.log)
 
+echo "自定义配置..."
+OLECONFIG=0
+for __KEY in "${!CONFIGS[@]}"; do
+  echo "配置 '$__KEY' ..."
+  __VALUE="${CONFIGS[$__KEY]}"
+  case "$__VALUE" in
+    y)
+      echo "启用内建 '$__KEY' ..."
+      scripts/config --file ${BUILD_DIR}/.config --enable $__KEY
+      ;;
+    n)
+      echo "禁用内建 '$__KEY' ..."
+      scripts/config --file ${BUILD_DIR}/.config --disable $__KEY
+      ;;
+    m)
+      echo "启用模块 '$__KEY' ..."
+      scripts/config --file ${BUILD_DIR}/.config --module $__KEY
+      ;;
+    \"*\")
+      echo "设置文本 '$__KEY=$__VALUE' ..."
+      scripts/config --file ${BUILD_DIR}/.config --set-str $__KEY $__VALUE
+      ;;
+    *)
+      echo "设置值 '$__KEY=$__VALUE' ..."
+      scripts/config --file ${BUILD_DIR}/.config --set-val $__KEY $__VALUE
+  esac
+  OLECONFIG=1
+done
+
 if [[ -n "$SIGNING_KEY_FILE" ]]; then
   echo "使用外部签名密钥..."
   scripts/config --file ${BUILD_DIR}/.config --set-str MODULE_SIG_KEY $SIGNING_KEY_FILE
+  OLECONFIG=1
+fi
+
+echo "应用自定义配置..."
+if (( $OLECONFIG != 0 )); then
   make $V $O oldconfig 2> >(tee $LOGS_DIR/oldconfig-error.log) 1> >(tee $LOGS_DIR/oldconfig-info.log)
 fi
 
