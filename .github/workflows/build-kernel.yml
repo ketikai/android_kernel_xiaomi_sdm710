@@ -303,6 +303,17 @@ jobs:
         KSU_CUSTOM_ENV_OR_CONFIG=$([[ -n "${{ inputs.ksu_custom_env_or_config }}" ]] && echo "${{ inputs.ksu_custom_env_or_config }}" || echo "")
         ./assemble ${{ inputs.kernel_arch }} ${{ inputs.kernel_device }} $VERBOSE -p ${{ env.PREBUILT_DIR }} $LLVM $CROSS_COMPILE $VERSION $SIGNING -d ${{ env.DESTINATION_DIR }} $CUSTOM_ENV_OR_CONFIG $KSU_CUSTOM_ENV_OR_CONFIG
 
+    - name: Upload Logs
+      if: fromJson(inputs.verbose_logs)
+      uses: actions/upload-artifact@v7
+      with:
+        name: logs
+        path: |
+          .logs/*
+        if-no-files-found: error
+        overwrite: true
+        include-hidden-files: true
+
     - name: Upload Kernel And Modules
       uses: actions/upload-artifact@v7
       with:
