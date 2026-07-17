@@ -92,6 +92,7 @@ jobs:
     - select
     secrets: inherit
     with:
+      verbose_logs: true
       kernel_localversion: ${{ github.ref_name }}-test
       ksu: true
       ksu_setup_script: ${{ needs.select.outputs.setup_script }}
@@ -111,5 +112,7 @@ jobs:
         name: ${{ env.PATCHES_ARTIFACT }}
 
     - name: Upload Patches
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         gh release upload --clobber ${{ env.RELEASE_TAG }} ${{ env.PATCHES_ARTIFACT }}
