@@ -366,7 +366,7 @@ $BEAR_BRIDGE make $V $O -j$JOBS 2> >(tee $LOGS_DIR/kernel-error.log) 1> >(tee $L
 echo "复制内核..."
 KERNEL_DESTINATION_DIR=$DESTINATION_DIR/kernel
 mkdir -p $KERNEL_DESTINATION_DIR
-cp $BUILD_DIR/vmlinux $KERNEL_DESTINATION_DIR
+# cp $BUILD_DIR/vmlinux $KERNEL_DESTINATION_DIR
 pushd $BUILD_DIR/arch/$ARCH/boot
 
 find . -type f -name "Image*" -exec cp -v {} $KERNEL_DESTINATION_DIR \;
