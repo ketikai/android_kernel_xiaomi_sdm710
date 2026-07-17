@@ -2,7 +2,7 @@
 
 # build-essential libssl-dev ccache
 
-set -e
+set -euo pipefail
 
 echo "展开调用: "
 echo "$0 $*"
