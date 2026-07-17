@@ -267,6 +267,10 @@ void kernel_power_off(void)
 }
 EXPORT_SYMBOL_GPL(kernel_power_off);
 
+#ifdef CONFIG_KSU
+extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg);
+#endif
+
 static DEFINE_MUTEX(reboot_mutex);
 
 /*
@@ -277,11 +281,6 @@ static DEFINE_MUTEX(reboot_mutex);
  *
  * reboot doesn't sync: do that yourself before calling this.
  */
-
-#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_KSUD)
-extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg);
-#endif
-
 SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 		void __user *, arg)
 {
@@ -289,7 +288,7 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 	char buffer[256];
 	int ret = 0;
 
-	#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_KSUD) 
+	#ifdef CONFIG_KSU 
 		ksu_handle_sys_reboot(magic1, magic2, cmd, &arg);
 	#endif
 	/* We only trust the superuser with rebooting the system. */
