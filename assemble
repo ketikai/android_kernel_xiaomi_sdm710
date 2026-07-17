@@ -250,13 +250,14 @@ while [ $# -gt 0 ]; do
   case "$1" in
     *=*)
       if [[ "$1" == CONFIG_* ]]; then
-        __KEY="${__CONFIG%%=*}"
+        __KEY="${1%%=*}"
+        __KEY="${__KEY#CONFIG_}"
         if [[ ! -n "$__KEY" ]]; then
           echo "无效的配置: $1: 格式应为 KEY=VALUE ，且 KEY 不能为 '$__KEY'" >&2
           exit 1
         fi
-        __VALUE="${__CONFIG#*=}"
-        CONFIGS["${__KEY#CONFIG_}"]="$__VALUE"
+        __VALUE="${1#*=}"
+        CONFIGS[$__KEY]="$__VALUE"
       else
         export "$1"
       fi
