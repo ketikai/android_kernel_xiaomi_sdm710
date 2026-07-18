@@ -101,6 +101,12 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
+    - name: Setup SWAP
+      if: runner.os == 'Linux'
+      uses: pierotofy/set-swap-space@master
+      with:
+        swap-size-gb: 16
+
     - name: Prepare Base
       id: prepare_base
       run: |
