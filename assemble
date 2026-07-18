@@ -209,187 +209,189 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-echo "工作线程: $JOBS"
-pushd $WORK_DIR
-
-export ARCH="$ARCH"
-
-if [[ -n "$PREBUILT_DIR" ]]; then
-  TOOLCHAIN_DIR="$PREBUILT_DIR/toolchain"
-fi
-
-if (( $LLVM != 0 )); then
-  export LLVM=1
-  export LLVM_IAS=1
-
-  __DIR="$TOOLCHAIN_DIR/clang/bin"
-  if [[ -n "$TOOLCHAIN_DIR" && -d "$__DIR" ]]; then
-    export PATH="$__DIR:$PATH"
-  fi
-else
-  if [[ -n "$TOOLCHAIN_DIR" ]]; then
-    for dir in $TOOLCHAIN_DIR/gcc/*/; do
-      __DIR="${dir%/}/bin"
-      if [ -d "$__DIR" ]; then
-        export PATH="$__DIR:$PATH"
-      fi
-    done
-  fi
-fi
-
-if [[ -n $CROSS_COMPILE ]]; then
-  export CROSS_COMPILE="${CROSS_COMPILE}-"
-fi
-
-CACHE_VERSION="$LOCALVERSION"
-if [[ -n "$LOCALVERSION" ]]; then
-  export LOCALVERSION="-$LOCALVERSION"
-fi
-
-while [ $# -gt 0 ]; do
-  case "$1" in
-    *=*)
-      if [[ "$1" == CONFIG_* ]]; then
-        __KEY="${1%%=*}"
-        __KEY="${__KEY#CONFIG_}"
-        if [[ ! -n "$__KEY" ]]; then
-          echo "无效的配置: $1: 格式应为 KEY=VALUE ，且 KEY 不能为 '$__KEY'" >&2
-          exit 1
-        fi
-        __VALUE="${1#*=}"
-        CONFIGS[$__KEY]="$__VALUE"
-      else
-        export "$1"
-      fi
-      shift
-      ;;
-    *)
-      echo "无效的环境变量: $1: 格式应为 KEY=VALUE" >&2
-      exit 1
-      ;;
-  esac
-done
-
-echo "打印环境变量..."
-if (( $VERBOSE != 0 )); then
-  printenv
-fi
-
-V=$((( $VERBOSE != 0 )) && echo 'V=1' || echo 'V=s')
-O="O=$BUILD_DIR"
-
-echo "初始化构建..."
+echo "初始化..."
 rm -rf $LOGS_DIR
 mkdir -p $LOGS_DIR
 
-CCACHE=""
-if [[ -n "$CACHE_DIR" ]]; then
-  echo "配置缓存..."
-  if command -v ccache >/dev/null 2>&1; then
-    CCACHE="ccache"
-    export CCACHE="$CCACHE"
-    if [[ -n "$CACHE_VERSION" ]]; then
-      export CCACHE_DIR="$CACHE_DIR/$CACHE_VERSION"
+{
+  echo "工作线程: $JOBS"
+  pushd $WORK_DIR
+
+  export ARCH="$ARCH"
+
+  if [[ -n "$PREBUILT_DIR" ]]; then
+    TOOLCHAIN_DIR="$PREBUILT_DIR/toolchain"
+  fi
+
+  if (( $LLVM != 0 )); then
+    export LLVM=1
+    export LLVM_IAS=1
+
+    __DIR="$TOOLCHAIN_DIR/clang/bin"
+    if [[ -n "$TOOLCHAIN_DIR" && -d "$__DIR" ]]; then
+      export PATH="$__DIR:$PATH"
+    fi
+  else
+    if [[ -n "$TOOLCHAIN_DIR" ]]; then
+      for dir in $TOOLCHAIN_DIR/gcc/*/; do
+        __DIR="${dir%/}/bin"
+        if [ -d "$__DIR" ]; then
+          export PATH="$__DIR:$PATH"
+        fi
+      done
+    fi
+  fi
+
+  if [[ -n $CROSS_COMPILE ]]; then
+    export CROSS_COMPILE="${CROSS_COMPILE}-"
+  fi
+
+  CACHE_VERSION="$LOCALVERSION"
+  if [[ -n "$LOCALVERSION" ]]; then
+    export LOCALVERSION="-$LOCALVERSION"
+  fi
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      *=*)
+        if [[ "$1" == CONFIG_* ]]; then
+          __KEY="${1%%=*}"
+          __KEY="${__KEY#CONFIG_}"
+          if [[ ! -n "$__KEY" ]]; then
+            echo "无效的配置: $1: 格式应为 KEY=VALUE ，且 KEY 不能为 '$__KEY'" >&2
+            exit 1
+          fi
+          __VALUE="${1#*=}"
+          CONFIGS[$__KEY]="$__VALUE"
+        else
+          export "$1"
+        fi
+        shift
+        ;;
+      *)
+        echo "无效的环境变量: $1: 格式应为 KEY=VALUE" >&2
+        exit 1
+        ;;
+    esac
+  done
+
+  echo "打印环境变量..."
+  if (( $VERBOSE != 0 )); then
+    printenv
+  fi
+
+  V=$((( $VERBOSE != 0 )) && echo 'V=1' || echo 'V=s')
+  O="O=$BUILD_DIR"
+
+  CCACHE=""
+  if [[ -n "$CACHE_DIR" ]]; then
+    echo "配置缓存..."
+    if command -v ccache >/dev/null 2>&1; then
+      CCACHE="ccache"
+      export CCACHE="$CCACHE"
+      if [[ -n "$CACHE_VERSION" ]]; then
+        export CCACHE_DIR="$CACHE_DIR/$CACHE_VERSION"
+      else
+        export CCACHE_DIR="$CACHE_DIR"
+      fi
+      ccache --show-config
+      if (( $CLEAN != 0 )); then
+        echo "清理缓存..."
+        ccache -zC
+      fi
     else
-      export CCACHE_DIR="$CACHE_DIR"
+      echo "CCache 未安装，跳过缓存..."
     fi
-    ccache --show-config
-    if (( $CLEAN != 0 )); then
-      echo "清理缓存..."
-      ccache -zC
+  fi
+
+  BEAR_BRIDGE=""
+  if (( $BEAR != 0 )); then
+    if command -v bear >/dev/null 2>&1; then
+      echo "启用生成 JSON 编译数据库..."
+      BEAR_BRIDGE="bear --"
+    else
+      echo "Bear 未安装，跳过生成 JSON 编译数据库..."
     fi
-  else
-    echo "CCache 未安装，跳过缓存..."
   fi
-fi
 
-BEAR_BRIDGE=""
-if (( $BEAR != 0 )); then
-  if command -v bear >/dev/null 2>&1; then
-    echo "启用生成 JSON 编译数据库..."
-    BEAR_BRIDGE="bear --"
-  else
-    echo "Bear 未安装，跳过生成 JSON 编译数据库..."
+  if (( $CLEAN != 0 )); then
+    echo "清理构建..."
+    make $V $O mrproper
+    make $V mrproper
   fi
-fi
 
-if (( $CLEAN != 0 )); then
-  echo "清理构建..."
-  make $V $O mrproper 2> >(tee $LOGS_DIR/mrproper-error.log) 1> >(tee $LOGS_DIR/mrproper-info.log)
-  make $V mrproper 2>> >(tee $LOGS_DIR/mrproper-error.log) 1>> >(tee $LOGS_DIR/mrproper-info.log)
-fi
+  echo "生成配置..."
+  DEFAULT_CONFIG="${DEVICE}_defconfig"
+  make $V $O $DEFAULT_CONFIG
 
-echo "生成配置..."
-DEFAULT_CONFIG="${DEVICE}_defconfig"
-make $V $O $DEFAULT_CONFIG 2> >(tee $LOGS_DIR/defconfig-error.log) 1> >(tee $LOGS_DIR/defconfig-info.log)
+  echo "自定义配置..."
+  OLECONFIG=0
+  for __KEY in "${!CONFIGS[@]}"; do
+    echo "配置 '$__KEY' ..."
+    __VALUE="${CONFIGS[$__KEY]}"
+    case "$__VALUE" in
+      y)
+        echo "启用内建 '$__KEY' ..."
+        scripts/config --file ${BUILD_DIR}/.config --enable $__KEY
+        ;;
+      n)
+        echo "禁用内建 '$__KEY' ..."
+        scripts/config --file ${BUILD_DIR}/.config --disable $__KEY
+        ;;
+      m)
+        echo "启用模块 '$__KEY' ..."
+        scripts/config --file ${BUILD_DIR}/.config --module $__KEY
+        ;;
+      \"*\")
+        echo "设置文本 '$__KEY=$__VALUE' ..."
+        scripts/config --file ${BUILD_DIR}/.config --set-str $__KEY $__VALUE
+        ;;
+      *)
+        echo "设置值 '$__KEY=$__VALUE' ..."
+        scripts/config --file ${BUILD_DIR}/.config --set-val $__KEY $__VALUE
+    esac
+    OLECONFIG=1
+  done
 
-echo "自定义配置..."
-OLECONFIG=0
-for __KEY in "${!CONFIGS[@]}"; do
-  echo "配置 '$__KEY' ..."
-  __VALUE="${CONFIGS[$__KEY]}"
-  case "$__VALUE" in
-    y)
-      echo "启用内建 '$__KEY' ..."
-      scripts/config --file ${BUILD_DIR}/.config --enable $__KEY
-      ;;
-    n)
-      echo "禁用内建 '$__KEY' ..."
-      scripts/config --file ${BUILD_DIR}/.config --disable $__KEY
-      ;;
-    m)
-      echo "启用模块 '$__KEY' ..."
-      scripts/config --file ${BUILD_DIR}/.config --module $__KEY
-      ;;
-    \"*\")
-      echo "设置文本 '$__KEY=$__VALUE' ..."
-      scripts/config --file ${BUILD_DIR}/.config --set-str $__KEY $__VALUE
-      ;;
-    *)
-      echo "设置值 '$__KEY=$__VALUE' ..."
-      scripts/config --file ${BUILD_DIR}/.config --set-val $__KEY $__VALUE
-  esac
-  OLECONFIG=1
-done
+  if [[ -n "$SIGNING_KEY_FILE" ]]; then
+    echo "使用外部签名密钥..."
+    scripts/config --file ${BUILD_DIR}/.config --set-str MODULE_SIG_KEY $SIGNING_KEY_FILE
+    OLECONFIG=1
+  fi
 
-if [[ -n "$SIGNING_KEY_FILE" ]]; then
-  echo "使用外部签名密钥..."
-  scripts/config --file ${BUILD_DIR}/.config --set-str MODULE_SIG_KEY $SIGNING_KEY_FILE
-  OLECONFIG=1
-fi
+  echo "应用自定义配置..."
+  if (( $OLECONFIG != 0 )); then
+    make $V $O oldconfig
+  fi
 
-echo "应用自定义配置..."
-if (( $OLECONFIG != 0 )); then
-  make $V $O oldconfig 2> >(tee $LOGS_DIR/oldconfig-error.log) 1> >(tee $LOGS_DIR/oldconfig-info.log)
-fi
+  echo "构建内核..."
+  $BEAR_BRIDGE make $V $O -j$JOBS
 
-echo "构建内核..."
-$BEAR_BRIDGE make $V $O -j$JOBS 2> >(tee $LOGS_DIR/kernel-error.log) 1> >(tee $LOGS_DIR/kernel-info.log)
+  echo "复制内核..."
+  KERNEL_DESTINATION_DIR=$DESTINATION_DIR/kernel
+  mkdir -p $KERNEL_DESTINATION_DIR
+  # cp $BUILD_DIR/vmlinux $KERNEL_DESTINATION_DIR
+  pushd $BUILD_DIR/arch/$ARCH/boot
 
-echo "复制内核..."
-KERNEL_DESTINATION_DIR=$DESTINATION_DIR/kernel
-mkdir -p $KERNEL_DESTINATION_DIR
-# cp $BUILD_DIR/vmlinux $KERNEL_DESTINATION_DIR
-pushd $BUILD_DIR/arch/$ARCH/boot
+  find . -type f -name "Image*" -exec cp -v {} $KERNEL_DESTINATION_DIR \;
 
-find . -type f -name "Image*" -exec cp -v {} $KERNEL_DESTINATION_DIR \;
+  popd
 
-popd
+  echo "签名模块..."
+  make $V $O modules_install INSTALL_MOD_PATH=modules
 
-echo "签名模块..."
-make $V $O modules_install INSTALL_MOD_PATH=modules 2> >(tee $LOGS_DIR/modules-error.log) 1> >(tee $LOGS_DIR/modules-info.log)
+  echo "复制模块..."
+  MODULES_DESTINATION_DIR=$DESTINATION_DIR/modules
+  mkdir -p $MODULES_DESTINATION_DIR
+  pushd $BUILD_DIR/modules
 
-echo "复制模块..."
-MODULES_DESTINATION_DIR=$DESTINATION_DIR/modules
-mkdir -p $MODULES_DESTINATION_DIR
-pushd $BUILD_DIR/modules
+  find . -type f -name "*.ko" -exec cp -v {} $MODULES_DESTINATION_DIR \;
 
-find . -type f -name "*.ko" -exec cp -v {} $MODULES_DESTINATION_DIR \;
+  popd
 
-popd
+  popd
 
-popd
-
-if [[ -n "$CCACHE" ]]; then
-  ccache -s -v
-fi
+  if [[ -n "$CCACHE" ]]; then
+    ccache -s -v
+  fi
+} 2> >(tee $LOGS_DIR/assemble-error.log) 1> >(tee $LOGS_DIR/assemble-info.log)
