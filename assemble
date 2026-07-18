@@ -282,10 +282,12 @@ echo "初始化构建..."
 rm -rf $LOGS_DIR
 mkdir -p $LOGS_DIR
 
+CCACHE=""
 if [[ -n "$CACHE_DIR" ]]; then
   echo "配置缓存..."
   if command -v ccache >/dev/null 2>&1; then
-    export CCACHE="ccache"
+    CCACHE="ccache"
+    export CCACHE="$CCACHE"
     if [[ -n "$CACHE_VERSION" ]]; then
       export CCACHE_DIR="$CACHE_DIR/$CACHE_VERSION"
     else
