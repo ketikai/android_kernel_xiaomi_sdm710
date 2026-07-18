@@ -117,6 +117,24 @@ jobs:
         fi
         echo "base=$BASE" >> $GITHUB_OUTPUT
 
+    - name: Setup CCache
+      id: setup_ccache
+      run: |
+        sudo apt-get install -y ccache
+        CACHE_DIR=$(realpath -m ".cache")
+        echo "cache_dir=$CACHE_DIR" >> $GITHUB_OUTPUT
+        CACHE_KEY="${{ runner.os }}-${{ runner.arch }}-ccache-${{ github.ref_name }}-${{ steps.prepare_base.outputs.base }}"
+        if [[ -n "${{ inputs.kernel_localversion }}" ]]; then
+          CACHE_KEY="${CACHE_KEY}-${{ inputs.kernel_localversion }}"
+        fi
+        echo "cache_key=$CACHE_KEY" >> $GITHUB_OUTPUT
+
+    - name: Download CCache Contents From Cache
+      uses: actions/cache@v6
+      with:
+        path: ${{ steps.setup_ccache.outputs.cache_dir }}
+        key: ${{ steps.setup_ccache.outputs.cache_key }}
+
     - name: Checkout
       uses: actions/checkout@v7
       with:
@@ -307,7 +325,7 @@ jobs:
         fi
         CUSTOM_ENV_OR_CONFIG=$([[ -n "${{ inputs.kernel_custom_env_or_config }}" ]] && echo "${{ inputs.kernel_custom_env_or_config }}" || echo "")
         KSU_CUSTOM_ENV_OR_CONFIG=$([[ -n "${{ inputs.ksu_custom_env_or_config }}" ]] && echo "${{ inputs.ksu_custom_env_or_config }}" || echo "")
-        ./assemble ${{ inputs.kernel_arch }} ${{ inputs.kernel_device }} $VERBOSE -p ${{ env.PREBUILT_DIR }} $LLVM $CROSS_COMPILE $VERSION $SIGNING -d ${{ env.DESTINATION_DIR }} $CUSTOM_ENV_OR_CONFIG $KSU_CUSTOM_ENV_OR_CONFIG
+        ./assemble ${{ inputs.kernel_arch }} ${{ inputs.kernel_device }} $VERBOSE -p ${{ env.PREBUILT_DIR }} -c ${{ steps.setup_ccache.outputs.cache_dir }} $LLVM $CROSS_COMPILE $VERSION $SIGNING -d ${{ env.DESTINATION_DIR }} $CUSTOM_ENV_OR_CONFIG $KSU_CUSTOM_ENV_OR_CONFIG
 
     - name: Upload Logs
       if: fromJson(inputs.verbose_logs)
