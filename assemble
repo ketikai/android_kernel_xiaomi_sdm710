@@ -213,6 +213,17 @@ echo "初始化..."
 rm -rf $LOGS_DIR
 mkdir -p $LOGS_DIR
 
+__INFO_FIFO=$LOGS_DIR/.info.fifo
+__ERROR_FIFO=$LOGS_DIR/.error.fifo
+__INFO_FILE=$LOGS_DIR/assemble-info.log
+__ERROR_FILE=$LOGS_DIR/assemble-error.log
+mkfifo $__INFO_FIFO
+mkfifo $__ERROR_FIFO
+cat $__INFO_FIFO | tee -a $__INFO_FILE &
+exec 1>$__INFO_FIFO
+cat $__ERROR_FIFO | tee -a $__ERROR_FILE &
+exec 2>$__ERROR_FIFO 
+
 {
   echo "工作线程: $JOBS"
   pushd $WORK_DIR
@@ -394,4 +405,4 @@ mkdir -p $LOGS_DIR
   if [[ -n "$CCACHE" ]]; then
     ccache -s -v
   fi
-} 2> >(tee $LOGS_DIR/assemble-error.log) 1> >(tee $LOGS_DIR/assemble-info.log)
+}
