@@ -18,6 +18,16 @@
 > 
 > '''
 
+### ReSukiSU
+---------------------------------
+
+> '''
+> 
+> * [Repository](https://github.com/ReSukiSU/ReSukiSU)
+> * [Releases](https://t.me/ReSukiSU/4)
+> 
+> '''
+
 ### How To Setup
 ---------------------------------
 
@@ -25,8 +35,11 @@
 # 1. into workdir
 cd android_kernel_xiaomi_sdm710
 
-# 2. setup with backslashxx's KernelSU
+# 2. setup with KernelSU
+# xxksu
 curl -LSs https://raw.githubusercontent.com/backslashxx/KernelSU/master/kernel/setup.sh  | bash -s master
+# or resuki
+curl -LSs https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh  | bash -s main
 ```
 
 ### Quick Build (Github Actions)
@@ -51,9 +64,7 @@ curl -LSs https://raw.githubusercontent.com/backslashxx/KernelSU/master/kernel/s
 >             MIIFKD...more content...R8gw==
 >             -----END CERTIFICATE-----
 > 
-> 4. manual run workflow (build kernel)
->
->    check `With KernelSU`
+> 4. manual run workflow (Build Kernel With KernelSU)
 >
 > '''
 
@@ -62,6 +73,8 @@ curl -LSs https://raw.githubusercontent.com/backslashxx/KernelSU/master/kernel/s
 
 > '''
 >
-> * [scope-minimized manual hooks](https://github.com/backslashxx/KernelSU/issues/5)
+> * [xxksu: scope-minimized manual hooks](https://github.com/backslashxx/KernelSU/issues/5)
+>
+> * [resuki: manual-integrate](https://resukisu.github.io/guide/manual-integrate.html)
 > 
 > '''
