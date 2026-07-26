@@ -169,7 +169,7 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-prebuilt-clang-toolchain-${{ hashFiles(steps.prepare_prebuilt.outputs.clang_toolchain_cache_key) }}
 
     - name: Download Prebuilt Clang Toolchain
-      if: fromJson(inputs.llvm) && fromJson(steps.prebuilt_clang_toolchain_cache.outputs.cache-hit) != true
+      if: fromJson(inputs.llvm) && steps.prebuilt_clang_toolchain_cache.outputs.cache-hit != 'true'
       run: |
         URL="${{ inputs.prebuilt_clang_toolchain }}"
         DIR="${{ steps.prepare_prebuilt.outputs.clang_toolchain_dir }}"
@@ -195,7 +195,7 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-prebuilt-gcc-toolchain-${{ hashFiles(steps.prepare_prebuilt.outputs.gcc_toolchain_cache_key) }}
 
     - name: Download Prebuilt GCC Toolchain
-      if: fromJson(inputs.llvm) != true && fromJson(steps.prebuilt_gcc_toolchain_cache.outputs.cache-hit) != true
+      if: fromJson(inputs.llvm) != true && steps.prebuilt_gcc_toolchain_cache.outputs.cache-hit != 'true'
       run: |
         URL="${{ inputs.prebuilt_gcc_toolchain }}"
         DIR="${{ steps.prepare_prebuilt.outputs.gcc_toolchain_dir }}"
