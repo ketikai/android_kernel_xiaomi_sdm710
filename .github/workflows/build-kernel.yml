@@ -214,7 +214,6 @@ jobs:
 
     - name: Prepare KernelSU
       id: prepare_ksu
-      if: fromJson(inputs.ksu)
       run: |
         DIR="${{ env.PREBUILT_DIR }}/manual-hooks"
         mkdir -p "$DIR"
@@ -222,8 +221,10 @@ jobs:
         
         ART=false
         URL="${{ inputs.ksu_manual_hooks }}"
-        if [[ "$URL" =~ ^[0-9]+$ ]]; then
-          URL=""
+        if ${{ inputs.ksu }}; then
+          if [[ "$URL" =~ ^[0-9]+$ ]]; then
+            URL=""
+          fi
           ART=true
         fi
         echo "manual_hooks_url=$URL" >> $GITHUB_OUTPUT
