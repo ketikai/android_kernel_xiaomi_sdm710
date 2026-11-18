@@ -224,8 +224,8 @@ jobs:
         if ${{ inputs.ksu }}; then
           if [[ "$URL" =~ ^[0-9]+$ ]]; then
             URL=""
+            ART=true
           fi
-          ART=true
         fi
         echo "manual_hooks_url=$URL" >> $GITHUB_OUTPUT
         echo "manual_hooks_artifact=$ART" >> $GITHUB_OUTPUT
